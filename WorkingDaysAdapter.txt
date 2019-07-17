@@ -1,0 +1,370 @@
+package com.bringtomeservices.adapter;
+
+import android.content.Context;
+import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.SwitchCompat;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.bringtomeservices.Pojo.AvailDayPojo;
+import com.bringtomeservices.Pojo.TimePojo;
+import com.bringtomeservices.app.MainActivity;
+import com.bringtomeservices.app.R;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Locale;
+
+public class WorkingDaysAdapter extends RecyclerView.Adapter<WorkingDaysAdapter.MyViewHolder> {
+
+    private ArrayList<AvailDayPojo> dataSet;
+    private Context context;
+    private ArrayList<TimePojo> ListTime = new ArrayList<>();
+    private SelectedValue selectedValue;
+
+    public interface SelectedValue{
+        void SelectedDynamicValue(ArrayList<TimePojo> ListTime, String Day);
+        void RemoveAllValueFromSelectedList(String Day);
+        void RemoveValueFromSelectedListByIndex(int ListIndex);
+    }
+
+    public WorkingDaysAdapter(Context context, ArrayList<AvailDayPojo> dataSet, SelectedValue selectedValue) {
+        this.dataSet = dataSet;
+        this.context = context;
+        this.selectedValue = selectedValue;
+    }
+
+    @Override
+    public int getItemCount() {
+        return dataSet == null ? 0 : dataSet.size();
+    }
+
+    @Override
+    public MyViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.working_days_adapter_row, parent, false);
+        return new MyViewHolder(view);
+
+    }
+
+
+    @Override
+    public void onBindViewHolder(final MyViewHolder holder, int position) {
+        int DynamicPosition = 0;
+        holder.TextViewDay.setText(dataSet.get(holder.getLayoutPosition()).getDayName());
+
+        holder.morning_switch.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                //Checking the status of Switch. Based on it performing 2 kind of operation.
+                //If switch is true -> Setting the particular day working time as 12.00 AM to 11.45 PM.
+                if (holder.morning_switch.isChecked()) {
+                    //Removing the dynamic view as hidden.
+                    holder.LinearLayoutMainCtrl.setVisibility(View.GONE);
+                    //And adding the particular day entry to ListTime
+                    ListTime.add(new TimePojo("12.00 AM",
+                            "11.45 PM",
+                            dataSet.get(holder.getLayoutPosition()).getDayName(), 1));
+                    //And passing the value of ListTime to RegisterPageThird.java via interface.
+                    selectedValue.SelectedDynamicValue(ListTime, dataSet.get(holder.getLayoutPosition()).getDayName());
+                }
+                //If switch is false -> Remove the particular entry from ListTime and refresh the RegisterPageThird.java
+                else {
+                    if (ListTime.size() > 0) {
+                        //Storing the value of ListTime to temp variable in ListOfSelectedTimeTemp
+                        ArrayList<TimePojo> ListOfSelectedTimeTemp = new ArrayList<>(ListTime);
+                        //After storing the value to temp, clear the values of ListTime
+                        ListTime.clear();
+                        //Based on the ListOfSelectedTimeTemp creating the loop
+                        for (int i = 0; i < ListOfSelectedTimeTemp.size(); i++) {
+                            //Condition are ListOfSelectedTimeTemp->Day and selected parent day must be equal and ListOfSelectedTimeTemp must be greater than 0
+                            if (ListOfSelectedTimeTemp.get(i).getDay().equals(dataSet.get(holder.getLayoutPosition()).getDayName()) && ListOfSelectedTimeTemp.size() > 0) {
+                                //Which true the condition enter the block and removing the particular day entry from it.
+                                ListOfSelectedTimeTemp.remove(i);
+                            } else {
+                                //Which false comes here and again storing it back to main list(ListTime)
+                                ListTime.add(new TimePojo(ListOfSelectedTimeTemp.get(i).getFromTime(),
+                                        ListOfSelectedTimeTemp.get(i).getToTime(),
+                                        ListOfSelectedTimeTemp.get(i).getDay(), ListOfSelectedTimeTemp.get(i).getIndex()));
+                            }
+                        }
+                    }
+                    //And display the Toast to user as need.
+                    Toast.makeText(context, "Working time was removed from" + dataSet.get(holder.getLayoutPosition()).getDayName(), Toast.LENGTH_SHORT).show();
+                    //And passing the value of ListTime to RegisterPageThird.java via interface
+                    selectedValue.RemoveAllValueFromSelectedList(dataSet.get(holder.getLayoutPosition()).getDayName());
+                }
+            }
+        });
+
+        holder.TextViewEdit.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (holder.morning_switch.isChecked()) {
+                    holder.LinearLayoutMainCtrl.setVisibility(View.GONE);
+                } else {
+                    holder.LinearLayoutMainCtrl.setVisibility(View.VISIBLE);
+                }
+            }
+        });
+
+        holder.AddIcon.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                //CanAdd Used to check dynamic view can be add or not. If From time and To time of spinner
+                //shouldn't in between already created value of row.
+                boolean CanAdd = false;
+                //Checking SpinnerFromTime and SpinnerToTime value shouldn't have default value.
+                if (!holder.SpinnerFromTime.getSelectedItem().toString().equals("From") && !holder.SpinnerToTime.getSelectedItem().toString().equals("To")) {
+                    //Checking both the spinner value shouldn't have same value.
+                    if (!holder.SpinnerFromTime.getSelectedItem().toString().equals(holder.SpinnerToTime.getSelectedItem().toString())){
+                        //Converting the spinner time to date object
+                        //StringToDate --> Used to convert string to date object
+                        Date SpinnerFromDate = StringToDate(holder.SpinnerFromTime.getSelectedItem().toString(), "hh.mm a");
+                        Date SpinnerToDate = StringToDate(holder.SpinnerToTime.getSelectedItem().toString(), "hh.mm a");
+                        //SpinnerToDate shouldn't be less than SpinnerFromDate
+                        if (SpinnerToDate.after(SpinnerFromDate)){
+                            //Checking the Dynamic created LinearLayout(LLempty) child value
+                            //IF LLempty child count is equal to 0, we can add the view directly without any check.
+                            //If LLempty child count is greater than 0, it contain the child so we need to check some more conditions.
+                            if (holder.LLempty.getChildCount() > 0){
+                                //Based on LLempty child count creating the loop
+                                for(int i=0; i< holder.LLempty.getChildCount();i++) {
+                                    View thisChild = holder.LLempty.getChildAt(i);
+                                    //Reading the row TextView FromTime and ToTime instance
+                                    TextView TextFromTime = (TextView) thisChild.findViewById(R.id.TextFromTime);
+                                    TextView TextToTime = (TextView) thisChild.findViewById(R.id.TextToTime);
+                                    //Now converting the TextView string value to date object using the StringToDate function
+                                    Date RowFromDate = StringToDate(TextFromTime.getText().toString(), "hh.mm a");
+                                    Date RowToDate = StringToDate(TextToTime.getText().toString(), "hh.mm a");
+                                    //1] (SpinnerFromDate.after(RowFromDate) && SpinnerFromDate.before(RowToDate)) --> This condition will check
+                                    //SpinnerFromDate with RowFromDate & RowToDate. SpinnerFromDate shouldn't in between RowFromDate & RowToDate.
+                                    //2] SpinnerFromDate.equals(RowFromDate) --> This condition will check SpinnerFromDate and RowFromDate.
+                                    //both value shouldn't be same.
+                                    if((SpinnerFromDate.after(RowFromDate) && SpinnerFromDate.before(RowToDate)) || SpinnerFromDate.equals(RowFromDate)) {
+                                        //If it enter, the condition became true. So we are not to create the dynamic view. So assign the CanAdd to false
+                                        CanAdd = false;
+                                        //Display the toast regarding it.
+                                        Toast.makeText(context, "Time is already added", Toast.LENGTH_SHORT).show();
+                                        //Exit the loop
+                                        return;
+                                    }else {
+                                        //If it enter,
+                                        CanAdd = true;
+                                    }
+                                }
+                            }else if (holder.LLempty.getChildCount() == 0){
+                                //If it enter, can add the view so set CanAdd as true.
+                                CanAdd = true;
+                            }
+                            if (CanAdd){
+                                //Passing the values of SpinnerFromTime and SpinnerToTime and Date to CreateView. This function will create the dynamic view
+                                CreateView(holder, holder.SpinnerFromTime.getSelectedItem().toString(), holder.SpinnerToTime.getSelectedItem().toString(), dataSet.get(holder.getLayoutPosition()).getDayName());
+                                //Again setting back the spinner values to default.
+                                holder.SpinnerFromTime.setSelection(0);
+                                holder.SpinnerToTime.setSelection(0);
+                            }
+                        }else {
+                            //Display the toast regarding it.
+                            Toast.makeText(context, "To time should be greater than From time", Toast.LENGTH_SHORT).show();
+                        }
+                    }else {
+                        //Display the toast regarding it.
+                        Toast.makeText(context, "Start time and End time shouldn't be same", Toast.LENGTH_SHORT).show();
+                    }
+                }else {
+                    //Display the toast regarding it.
+                    Toast.makeText(context, "Both the values are mandatory", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+        holder.BtnSubmit.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                //If LLempty child count is greater than zero means we are updating the ListTime to RegisterPageThird.java via interface
+                if (holder.LLempty.getChildCount() > 0){
+                    selectedValue.SelectedDynamicValue(ListTime, dataSet.get(holder.getLayoutPosition()).getDayName());
+                }else {
+                    //Display the toast regarding it.
+                    Toast.makeText(context, "Select at least single value", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+        holder.BtnCancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                //If LLempty child count is greater than zero means remove the dynamically created view.
+                if (holder.LLempty.getChildCount() > 0){
+                    //Display the toast regarding it.
+                    Toast.makeText(context, dataSet.get(holder.getLayoutPosition()).getDayName() + " working was removed", Toast.LENGTH_SHORT).show();
+                    //Clearing the value of ListTime
+                    if (ListTime.size() > 0) {
+                        //Storing the value of ListTime to temp variable in ListOfSelectedTimeTemp
+                        ArrayList<TimePojo> ListOfSelectedTimeTemp = new ArrayList<>(ListTime);
+                        //After storing the value to temp, clear the values of ListTime
+                        ListTime.clear();
+                        //Based on the ListOfSelectedTimeTemp creating the loop
+                        for (int i = 0; i < ListOfSelectedTimeTemp.size(); i++) {
+                            //Condition are ListOfSelectedTimeTemp->Day and selected parent day must be equal and ListOfSelectedTimeTemp must be greater than 0
+                            if (ListOfSelectedTimeTemp.get(i).getDay().equals(dataSet.get(holder.getLayoutPosition()).getDayName()) && ListOfSelectedTimeTemp.size() > 0) {
+                                //Which true the condition enter the block and removing the particular day entry from it.
+                                ListOfSelectedTimeTemp.remove(i);
+                            } else {
+                                //Which false comes here and again storing it back to main list(ListTime)
+                                ListTime.add(new TimePojo(ListOfSelectedTimeTemp.get(i).getFromTime(),
+                                        ListOfSelectedTimeTemp.get(i).getToTime(),
+                                        ListOfSelectedTimeTemp.get(i).getDay(), ListOfSelectedTimeTemp.get(i).getIndex()));
+                            }
+                        }
+                    }
+                    //And display the Toast to user as need.
+                    Toast.makeText(context, "Working time was removed from" + dataSet.get(holder.getLayoutPosition()).getDayName(), Toast.LENGTH_SHORT).show();
+                    //And passing the value of ListTime to RegisterPageThird.java via interface
+                    selectedValue.RemoveAllValueFromSelectedList(dataSet.get(holder.getLayoutPosition()).getDayName());
+                    //Now clearing the dynamically created view
+                    holder.LLempty.removeAllViews();
+                    //Hiding the label TextView also
+                    holder.TextViewFromTimeLabel.setVisibility(View.GONE);
+                    holder.TextViewToTimeLabel.setVisibility(View.GONE);
+                }else {
+                    //Removing the dynamic view as hidden.
+                    holder.LinearLayoutMainCtrl.setVisibility(View.GONE);
+                }
+            }
+        });
+
+    }
+
+    public ArrayList<AvailDayPojo> getN() {
+
+        return dataSet;
+    }
+
+    public void setN(ArrayList<String>n) {
+
+        this.dataSet = dataSet;
+
+    }
+
+    public static class MyViewHolder extends RecyclerView.ViewHolder {
+
+        TextView TextViewDay, TextViewEdit, BtnSubmit, BtnCancel, TextViewFromTimeLabel,
+                TextViewToTimeLabel;
+        SwitchCompat morning_switch;
+        Spinner SpinnerFromTime, SpinnerToTime;
+        ImageView AddIcon;
+        LinearLayout LLempty, LinearLayoutMainCtrl;
+
+        MyViewHolder(View itemView) {
+            super(itemView);
+            TextViewDay = (TextView) itemView.findViewById(R.id.TextViewDay);
+            TextViewEdit = (TextView) itemView.findViewById(R.id.TextViewEdit);
+            TextViewFromTimeLabel = (TextView) itemView.findViewById(R.id.TextViewFromTimeLabel);
+            TextViewToTimeLabel = (TextView) itemView.findViewById(R.id.TextViewToTimeLabel);
+            BtnSubmit = (TextView) itemView.findViewById(R.id.BtnSubmit);
+            BtnCancel = (TextView) itemView.findViewById(R.id.BtnCancel);
+            morning_switch = (SwitchCompat) itemView.findViewById(R.id.morning_switch);
+            SpinnerFromTime = (Spinner) itemView.findViewById(R.id.SpinnerFromTime);
+            SpinnerToTime = (Spinner) itemView.findViewById(R.id.SpinnerToTime);
+            AddIcon = (ImageView) itemView.findViewById(R.id.AddIcon);
+            LinearLayoutMainCtrl = (LinearLayout) itemView.findViewById(R.id.LinearLayoutMainCtrl);
+            LLempty = (LinearLayout) itemView.findViewById(R.id.LLempty);
+        }
+
+    }
+
+    private void CreateView(final MyViewHolder holder, String FromTime, String ToTime, String Day){
+        //Inflating the dynamic view
+        LayoutInflater layoutInflater =
+                (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        View addView = layoutInflater.inflate(R.layout.from_to_time, null);
+        //findViewByID block
+        TextView TextFromTime = (TextView) addView.findViewById(R.id.TextFromTime);
+        TextView TextToTime = (TextView) addView.findViewById(R.id.TextToTime);
+        final TextView TextViewParentDay = (TextView) addView.findViewById(R.id.TextViewParentDay);
+        ImageView RemoveIcon = (ImageView) addView.findViewById(R.id.RemoveIcon);
+        final TextView TextViewIndex = (TextView) addView.findViewById(R.id.TextViewIndex);
+        //Writing the value of FromTime and To to corresponding TextView
+        TextFromTime.setText(FromTime);
+        TextToTime.setText(ToTime);
+        //Value of Day is stored in the hidden TextView TextViewParentDay for the future operation.
+        TextViewParentDay.setText(Day);
+        //Creating the view at bottom
+        holder.LLempty.addView(addView, holder.LLempty.getChildCount());
+        //Value of Index is stored in the hidden TextView TextViewIndex for the future operation.
+        TextViewIndex.setText(""+ (holder.LLempty.getChildCount() - 1));
+//        IndexList.add((holder.LLempty.getChildCount() - 1));
+        //Visible the label
+        holder.TextViewFromTimeLabel.setVisibility(View.VISIBLE);
+        holder.TextViewToTimeLabel.setVisibility(View.VISIBLE);
+        //Storing the all values to ListTime
+        ListTime.add(new TimePojo(holder.SpinnerFromTime.getSelectedItem().toString(),
+                (holder.SpinnerToTime.getSelectedItem().toString()),
+                Day, holder.LLempty.getChildCount() - 1));
+//        DynamicPosition++;
+
+        RemoveIcon.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+//                Toast.makeText(context, ""+TextViewIndex.getText().toString(), Toast.LENGTH_SHORT).show();
+                //Checking the ListTime size
+                if (ListTime.size() > 0){
+                    //Based on ListView size creating the loop
+                    for (int i = 0; i< ListTime.size(); i++){
+                        //1] ListTime.size() > 0 --> Once again checking the ListTime size
+                        //2] ListTime.get(i).getDay().equals(TextViewParentDay.getText().toString()) --> Checking the ListTime Day with hidden TextViewParentDay Day
+                        //only allow if both days are equal.
+                        //3] ListTime.get(i).getIndex() == Integer.parseInt(TextViewIndex.getText().toString()) --> Checking the ListTime Index with hidden TextViewIndex Index
+                        //only allow if both Index are equal
+                        if (ListTime.size() > 0
+                                && ListTime.get(i).getDay().equals(TextViewParentDay.getText().toString())
+                                && ListTime.get(i).getIndex() == Integer.parseInt(TextViewIndex.getText().toString())){
+                            //Checking LLempty child count
+                            if (holder.LLempty.getChildCount()==1){
+                                //If LLempty child count is 1 means directly remove all thg view from it
+                                holder.LLempty.removeAllViews();
+                                //Hiding the label TextView also
+                                holder.TextViewFromTimeLabel.setVisibility(View.GONE);
+                                holder.TextViewToTimeLabel.setVisibility(View.GONE);
+                            }else {
+                                //If LLempty child count is greater than 1 means remove the particular view from it based on Index
+                                holder.LLempty.removeViewAt(ListTime.get(i).getIndex());
+                            }
+                            //Now removing the ListTime based on Index.
+                            ListTime.remove(i);
+                            //And updating/removing the RegisterPageThird.java list via Interface based on Index
+                            selectedValue.RemoveValueFromSelectedListByIndex(i);
+                            //Already we got the index to remove so here we breaking the loop.
+                            break;
+//                            IndexList.remove(IndexList.indexOf(Integer.parseInt(TextViewIndex.getText().toString())));
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    String DateToString(Date date, String Format){
+        return new SimpleDateFormat(Format, Locale.getDefault()).format(date);
+    }
+
+    private Date StringToDate(String date, String Format){
+        Date OutPutDate = null;
+        try {
+            OutPutDate =  new SimpleDateFormat(Format, Locale.getDefault()).parse(date);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        return OutPutDate;
+    }
+}

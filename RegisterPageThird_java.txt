@@ -1,0 +1,46 @@
+workingDaysAdapter = new WorkingDaysAdapter(this, myDayArrList, new WorkingDaysAdapter.SelectedValue() {
+            @Override
+            public void SelectedDynamicValue(ArrayList<TimePojo> ListTime, String Day) {
+                //Before adding ListTime to ListOfSelectedTime, clear the values of ListOfSelectedTime. Because it will hold old entry
+                ListOfSelectedTime.clear();
+                //After removing the entry of ListOfSelectedTime, store the new value received from ListTime
+                ListOfSelectedTime.addAll(ListTime);
+                //And display the Toast to user as need.
+                Toast.makeText(RegisterPageThird.this, "Working time was added to " + Day, Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void RemoveAllValueFromSelectedList(String Day) {
+                if (ListOfSelectedTime.size() > 0) {
+                    //Storing the value of ListTime to temp variable in ListOfSelectedTimeTemp
+                    ArrayList<TimePojo> ListOfSelectedTimeTemp = new ArrayList<>(ListOfSelectedTime);
+                    //After storing the value to temp, clear the values of ListTime
+                    ListOfSelectedTime.clear();
+                    //Based on the ListOfSelectedTimeTemp creating the loop
+                    for (int i = 0; i < ListOfSelectedTimeTemp.size(); i++) {
+                        //Condition are ListOfSelectedTimeTemp->Day and selected parent day must be equal and ListOfSelectedTimeTemp must be greater than 0
+                        if (ListOfSelectedTimeTemp.get(i).getDay().equals(Day) && ListOfSelectedTimeTemp.size() > 0) {
+                            //Which true the condition enter the block and removing the particular day entry from it.
+                            ListOfSelectedTimeTemp.remove(i);
+                        }else {
+                            //Which false comes here and again storing it back to main list(ListTime)
+                            ListOfSelectedTime.add(new TimePojo(ListOfSelectedTimeTemp.get(i).getFromTime(),
+                                    ListOfSelectedTimeTemp.get(i).getToTime(),
+                                    ListOfSelectedTimeTemp.get(i).getDay(), ListOfSelectedTimeTemp.get(i).getIndex()));
+                        }
+                    }
+                }else {
+                    //And display the Toast to user as need.
+                    Toast.makeText(RegisterPageThird.this, "Nothing to clear", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void RemoveValueFromSelectedListByIndex(int ListIndex) {
+                //Checking the ListOfSelectedTime size
+                if (ListOfSelectedTime.size() > 0) {
+                    //If true, remove the particular entry by Index.
+                    ListOfSelectedTime.remove(ListIndex);
+                }
+            }
+        });
